@@ -1134,10 +1134,21 @@ func benchmarkExpandedPostings(
 				if !tb.IsBenchmark() {
 					seriesThatMatch := filterSeries(allSeries, testCase.matchers)
 					seriesForPostings := loadSeries(ctx, tb, p, indexr)
-					assert.Equal(tb, seriesThatMatch, seriesForPostings)
+					assertEqualLabelSlices(tb, seriesThatMatch, seriesForPostings)
 				}
 			}
 		})
+	}
+}
+
+func assertEqualLabelSlices(tb testing.TB, a, b []labels.Labels) {
+	tb.Helper()
+	assert.Equal(tb, len(a), len(b))
+	if len(a) != len(b) {
+		return
+	}
+	for i := range a {
+		assert.True(tb, labels.Equal(a[i], b[i]))
 	}
 }
 

@@ -2181,7 +2181,7 @@ func TestOpenBlockSeriesChunkRefsSetsIterator_SeriesCaching(t *testing.T) {
 					require.NoError(t, err)
 					lset := extractLabelsFromSeriesChunkRefsSets(readAllSeriesChunkRefsSet(ss))
 					require.NoError(t, ss.Err())
-					assert.Equal(t, testCase.expectedLabelSets, lset)
+					assertEqualLabelSlices(t, testCase.expectedLabelSets, lset)
 					assert.Equal(t, testCase.expectedSeriesReadFromBlockWithColdCache, statsColdCache.export().seriesFetched)
 
 					// Run 2 with a warm cache
