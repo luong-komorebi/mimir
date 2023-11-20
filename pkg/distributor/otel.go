@@ -39,6 +39,7 @@ const (
 	maxErrMsgLen   = 1024
 )
 
+// OTLPHandler is a http.Handler which accepts OTLP write requests.
 func OTLPHandler(
 	maxRecvMsgSize int,
 	sourceIPs *middleware.SourceIPExtractor,

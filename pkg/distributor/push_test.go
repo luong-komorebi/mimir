@@ -598,8 +598,6 @@ func createOTLPRequest(t testing.TB, metricRequest pmetricotlp.ExportRequest, co
 	rawBytes, err := metricRequest.MarshalProto()
 	require.NoError(t, err)
 
-	body := rawBytes
-
 	if compress {
 		var b bytes.Buffer
 		gz := gzip.NewWriter(&b)
@@ -607,10 +605,10 @@ func createOTLPRequest(t testing.TB, metricRequest pmetricotlp.ExportRequest, co
 		require.NoError(t, err)
 		require.NoError(t, gz.Close())
 
-		body = b.Bytes()
+		rawBytes = b.Bytes()
 	}
 
-	req, err := http.NewRequest("POST", "http://localhost/", bytes.NewReader(body))
+	req, err := http.NewRequest("POST", "http://localhost/", newReusableReader(t, rawBytes))
 	require.NoError(t, err)
 	req.Header.Set("Content-Type", "application/x-protobuf")
 	req.Header.Set("X-Scope-OrgID", "test")
@@ -629,15 +627,21 @@ func createOTLPRequest(t testing.TB, metricRequest pmetricotlp.ExportRequest, co
 
 func createPrometheusRemoteWriteProtobuf(t testing.TB) []byte {
 	t.Helper()
+	var samples []prompb.Sample
+	for i := 0; i < 1000; i++ {
+		ts := time.Date(2020, 4, 1, 0, 0, 0, 0, time.UTC).Add(time.Second)
+		samples = append(samples, prompb.Sample{
+			Value:     1,
+			Timestamp: ts.UnixNano(),
+		})
+	}
 	input := prompb.WriteRequest{
 		Timeseries: []prompb.TimeSeries{
 			{
 				Labels: []prompb.Label{
 					{Name: "__name__", Value: "foo"},
 				},
-				Samples: []prompb.Sample{
-					{Value: 1, Timestamp: time.Date(2020, 4, 1, 0, 0, 0, 0, time.UTC).UnixNano()},
-				},
+				Samples: samples,
 				Histograms: []prompb.Histogram{
 					remote.HistogramToHistogramProto(1337, test.GenerateTestHistogram(1))},
 			},
