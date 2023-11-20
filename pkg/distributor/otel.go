@@ -54,21 +54,24 @@ func OTLPHandler(
 	discardedDueToOtelParseError := validation.DiscardedSamplesCounter(reg, otelParseError)
 
 	return handler(maxRecvMsgSize, sourceIPs, allowSkipLabelNameValidation, limits, retryCfg, push, logger, func(ctx context.Context, r *http.Request, maxRecvMsgSize int, dst []byte, req *mimirpb.PreallocWriteRequest, logger log.Logger) ([]byte, error) {
-		var decoderFunc func(buf []byte) (pmetricotlp.ExportRequest, error)
+		var decoderFunc func(io.Reader) (pmetricotlp.ExportRequest, []byte, error)
 
 		contentType := r.Header.Get("Content-Type")
 		switch contentType {
 		case pbContentType:
-			decoderFunc = func(buf []byte) (pmetricotlp.ExportRequest, error) {
-				req := pmetricotlp.NewExportRequest()
-				return req, req.UnmarshalProto(buf)
+			decoderFunc = func(reader io.Reader) (pmetricotlp.ExportRequest, []byte, error) {
+				er := pmetricotlp.NewExportRequest()
+				buf, err := util.ParseProtoReader(ctx, reader, int(r.ContentLength), maxRecvMsgSize, dst, er, util.NoCompression)
+				return er, buf, err
 			}
 
-		case jsonContentType:
-			decoderFunc = func(buf []byte) (pmetricotlp.ExportRequest, error) {
-				req := pmetricotlp.NewExportRequest()
-				return req, req.UnmarshalJSON(buf)
-			}
+			/*
+				case jsonContentType:
+					decoderFunc = func(buf []byte) (pmetricotlp.ExportRequest, error) {
+						req := pmetricotlp.NewExportRequest()
+						return req, req.UnmarshalJSON(buf)
+					}
+			*/
 
 		default:
 			return nil, httpgrpc.Errorf(http.StatusUnsupportedMediaType, "unsupported content type: %s, supported: [%s, %s]", contentType, jsonContentType, pbContentType)
@@ -96,24 +99,6 @@ func OTLPHandler(
 			return nil, httpgrpc.Errorf(http.StatusUnsupportedMediaType, "unsupported compression: %s. Only \"gzip\" or no compression supported", contentEncoding)
 		}
 
-		// Protect against a large input.
-		reader = http.MaxBytesReader(nil, reader, int64(maxRecvMsgSize))
-
-		body, err := io.ReadAll(reader)
-		if err != nil {
-			r.Body.Close()
-
-			if util.IsRequestBodyTooLarge(err) {
-				return body, httpgrpc.Errorf(http.StatusRequestEntityTooLarge, distributorMaxWriteMessageSizeErr{actual: -1, limit: maxRecvMsgSize}.Error())
-			}
-
-			return body, err
-		}
-
-		if err = r.Body.Close(); err != nil {
-			return body, err
-		}
-
 		spanLogger, ctx := spanlogger.NewWithLogger(ctx, logger, "Distributor.OTLPHandler.decodeAndConvert")
 		defer spanLogger.Span.Finish()
 
@@ -121,16 +106,16 @@ func OTLPHandler(
 		spanLogger.SetTag("content_encoding", contentEncoding)
 		spanLogger.SetTag("content_length", r.ContentLength)
 
-		otlpReq, err := decoderFunc(body)
+		otlpReq, buf, err := decoderFunc(reader)
 		if err != nil {
-			return body, err
+			return nil, err
 		}
 
 		level.Debug(spanLogger).Log("msg", "decoding complete, starting conversion")
 
 		metrics, err := otelMetricsToTimeseries(ctx, discardedDueToOtelParseError, logger, otlpReq.Metrics())
 		if err != nil {
-			return body, err
+			return buf, err
 		}
 
 		metricCount := len(metrics)
@@ -159,7 +144,7 @@ func OTLPHandler(
 			req.Metadata = metadata
 		}
 
-		return body, nil
+		return buf, nil
 	})
 }
 
@@ -218,7 +203,6 @@ func otelMetricsToMetadata(md pmetric.Metrics) []*mimirpb.MetricMetadata {
 
 func otelMetricsToTimeseries(ctx context.Context, discardedDueToOtelParseError *prometheus.CounterVec, logger log.Logger, md pmetric.Metrics) ([]mimirpb.PreallocTimeseries, error) {
 	tsMap, errs := prometheusremotewrite.FromMetrics(md, prometheusremotewrite.Settings{})
-
 	if errs != nil {
 		userID, err := tenant.TenantID(ctx)
 		if err != nil {
