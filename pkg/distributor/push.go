@@ -22,6 +22,8 @@ import (
 	"github.com/grafana/dskit/middleware"
 	"github.com/grafana/dskit/tenant"
 	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/prometheus/model/labels"
+	"github.com/prometheus/prometheus/model/relabel"
 
 	"github.com/grafana/mimir/pkg/mimirpb"
 	"github.com/grafana/mimir/pkg/util"
@@ -34,7 +36,7 @@ import (
 type PushFunc func(ctx context.Context, req *Request) error
 
 // parserFunc defines how to read the body the request from an HTTP request
-type parserFunc func(ctx context.Context, r *http.Request, maxSize int, buffer []byte, req *mimirpb.PreallocWriteRequest, logger log.Logger) ([]byte, error)
+type parserFunc func(ctx context.Context, r *http.Request, maxSize int, skipLabelNameValidation bool, buffer []byte, logger log.Logger) (mimirpb.IWriteRequest, []byte, error)
 
 // Wrap a slice in a struct so we can store a pointer in sync.Pool
 type bufHolder struct {
@@ -77,7 +79,7 @@ func (cfg *RetryConfig) Validate() error {
 	return nil
 }
 
-// Handler is a http.Handler which accepts WriteRequests.
+// Handler is a http.Handler which accepts mimirpb.IWriteRequests.
 func Handler(
 	maxRecvMsgSize int,
 	sourceIPs *middleware.SourceIPExtractor,
@@ -87,13 +89,86 @@ func Handler(
 	push PushFunc,
 	logger log.Logger,
 ) http.Handler {
-	return handler(maxRecvMsgSize, sourceIPs, allowSkipLabelNameValidation, limits, retryCfg, push, logger, func(ctx context.Context, r *http.Request, maxRecvMsgSize int, dst []byte, req *mimirpb.PreallocWriteRequest, _ log.Logger) ([]byte, error) {
-		res, err := util.ParseProtoReader(ctx, r.Body, int(r.ContentLength), maxRecvMsgSize, dst, req, util.RawSnappy)
-		if errors.Is(err, util.MsgSizeTooLargeErr{}) {
-			err = distributorMaxWriteMessageSizeErr{actual: int(r.ContentLength), limit: maxRecvMsgSize}
+	return handler(maxRecvMsgSize, sourceIPs, allowSkipLabelNameValidation, limits, retryCfg, push, logger, func(ctx context.Context, r *http.Request, maxRecvMsgSize int, skipLabelNameValidation bool, dst []byte, _ log.Logger) (mimirpb.IWriteRequest, []byte, error) {
+		bufHolder := bufferPool.Get().(*bufHolder)
+		buf := bufHolder.buf
+		var req mimirpb.PreallocWriteRequest
+		res, err := util.ParseProtoReader(ctx, r.Body, int(r.ContentLength), maxRecvMsgSize, buf, &req, util.RawSnappy)
+		if err != nil {
+			if errors.Is(err, util.MsgSizeTooLargeErr{}) {
+				err = distributorMaxWriteMessageSizeErr{actual: int(r.ContentLength), limit: maxRecvMsgSize}
+			}
+			bufferPool.Put(bufHolder)
+			return nil, nil, err
 		}
-		return res, err
+
+		// If decoding allocated a bigger buffer, put that one back in the pool.
+		if buf = buf[:cap(buf)]; len(buf) > len(bufHolder.buf) {
+			bufHolder.buf = buf
+		}
+		req.SkipLabelNameValidation = skipLabelNameValidation
+		req.bufHolder = bufHolder
+		return req, res, nil
 	})
+}
+
+// mimirRequest implements mimirpb.IWriteRequest.
+type mimirRequest struct {
+	wrapped   *mimirpb.PreallocWriteRequest
+	bufHolder *bufHolder
+}
+
+func (r *mimirRequest) Cleanup() {
+	mimirpb.ReuseSlice(r.wrapped.Timeseries)
+	bufferPool.Put(r.bufHolder)
+}
+
+func (r *mimirRequest) PruneTimeseries(tenantID string, relabelConfigs []*relabel.Config, dropLabels string) {
+	var removeTsIndexes []int
+	lb := labels.NewBuilder(labels.EmptyLabels())
+	for tsIdx := 0; tsIdx < len(r.Timeseries); tsIdx++ {
+		ts := r.Timeseries[tsIdx]
+
+		if len(relabelConfigs) > 0 {
+			mimirpb.FromLabelAdaptersToBuilder(ts.Labels, lb)
+			lb.Set(metaLabelTenantID, tenantID)
+			keep := relabel.ProcessBuilder(lb, relabelConfigs...)
+			if !keep {
+				removeTsIndexes = append(removeTsIndexes, tsIdx)
+				continue
+			}
+			lb.Del(metaLabelTenantID)
+			r.Timeseries[tsIdx].SetLabels(mimirpb.FromBuilderToLabelAdapters(lb, ts.Labels))
+		}
+
+		for _, labelName := range dropLabels {
+			r.Timeseries[tsIdx].RemoveLabel(labelName)
+		}
+
+		// Prometheus strips empty values before storing; drop them now, before sharding to ingesters.
+		r.Timeseries[tsIdx].RemoveEmptyLabelValues()
+
+		if len(ts.Labels) == 0 {
+			removeTsIndexes = append(removeTsIndexes, tsIdx)
+			continue
+		}
+
+		// We rely on sorted labels in different places:
+		// 1) When computing token for labels, and sharding by all labels. Here different order of labels returns
+		// different tokens, which is bad.
+		// 2) In validation code, when checking for duplicate label names. As duplicate label names are rejected
+		// later in the validation phase, we ignore them here.
+		// 3) Ingesters expect labels to be sorted in the Push request.
+		r.Timeseries[tsIdx].SortLabelsIfNeeded()
+	}
+
+	if len(removeTsIndexes) > 0 {
+		for _, removeTsIndex := range removeTsIndexes {
+			mimirpb.ReusePreallocTimeseries(&r.Timeseries[removeTsIndex])
+		}
+		r.Timeseries = util.RemoveSliceIndexes(r.Timeseries, removeTsIndexes)
+	}
+
 }
 
 type distributorMaxWriteMessageSizeErr struct {
@@ -128,35 +203,19 @@ func handler(
 				logger = utillog.WithSourceIPs(source, logger)
 			}
 		}
-		supplier := func() (*mimirpb.WriteRequest, func(), error) {
-			bufHolder := bufferPool.Get().(*bufHolder)
-			var req mimirpb.PreallocWriteRequest
-			buf, err := parser(ctx, r, maxRecvMsgSize, bufHolder.buf, &req, logger)
+		supplier := func() (mimirpb.IWriteRequest, error) {
+			skipLabelNameValidation := allowSkipLabelNameValidation && req.SkipLabelNameValidation && r.Header.Get(SkipLabelNameValidationHeader) == "true"
+			req, err := parser(ctx, r, maxRecvMsgSize, skipLabelNameValidation, logger)
 			if err != nil {
 				// Check for httpgrpc error, default to client error if parsing failed
 				if _, ok := httpgrpc.HTTPResponseFromError(err); !ok {
 					err = httpgrpc.Errorf(http.StatusBadRequest, err.Error())
 				}
 
-				bufferPool.Put(bufHolder)
 				return nil, nil, err
 			}
-			// If decoding allocated a bigger buffer, put that one back in the pool.
-			if buf = buf[:cap(buf)]; len(buf) > len(bufHolder.buf) {
-				bufHolder.buf = buf
-			}
 
-			if allowSkipLabelNameValidation {
-				req.SkipLabelNameValidation = req.SkipLabelNameValidation && r.Header.Get(SkipLabelNameValidationHeader) == "true"
-			} else {
-				req.SkipLabelNameValidation = false
-			}
-
-			cleanup := func() {
-				mimirpb.ReuseSlice(req.Timeseries)
-				bufferPool.Put(bufHolder)
-			}
-			return &req.WriteRequest, cleanup, nil
+			return req, nil
 		}
 		req := newRequest(supplier)
 		if err := push(ctx, req); err != nil {
