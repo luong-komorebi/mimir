@@ -307,6 +307,8 @@
       - "--config.file=/etc/prometheus/prometheus.yaml"
       - "--enable-feature=exemplar-storage"
       - "--enable-feature=native-histograms"
+    "extra_hosts":
+      - "host.docker.internal:host-gateway"
     "image": "prom/prometheus:v2.47.2"
     "ports":
       - "9090:9090"

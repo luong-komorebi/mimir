@@ -40,6 +40,9 @@ scrape_configs:
         regex: '(.+?)(-\d+)?'
         replacement: '${1}'
     scrape_classic_histograms: true
+  - job_name: simple_server
+    static_configs:
+      - targets: ["host.docker.internal:8090"]
 
 remote_write:
   - url: http://distributor-1:8000/api/v1/push

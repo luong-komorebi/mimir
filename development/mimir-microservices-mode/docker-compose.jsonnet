@@ -317,6 +317,7 @@ std.manifestYamlDoc({
         '../../operations/mimir-mixin-compiled/rules.yaml:/etc/mixin/mimir-rules.yaml',
       ],
       ports: ['9090:9090'],
+      extra_hosts: ['host.docker.internal:host-gateway'],
     },
   },
 
