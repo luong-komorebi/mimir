@@ -239,7 +239,7 @@ std.manifestYamlDoc({
   consul:: {
     consul: {
       image: 'consul',
-      command: ['agent', '-dev', '-client=0.0.0.0', '-log-level=info'],
+      command: ['agent', '-dev', '-client=0.0.0.0', '-log-level=err'],
       ports: ['8500:8500'],
     },
   },
@@ -342,7 +342,7 @@ std.manifestYamlDoc({
     // until metadata remote write is not supported by Prometheus).
     'grafana-agent': {
       image: 'grafana/agent:v0.37.3',
-      command: ['-config.file=/etc/agent-config/grafana-agent.yaml', '-metrics.wal-directory=/tmp', '-server.http.address=127.0.0.1:9091'],
+      command: ['-config.file=/etc/agent-config/grafana-agent.yaml', '-metrics.wal-directory=/tmp', '-server.http.address=127.0.0.1:9091', '-log.level=error'],
       volumes: ['./config:/etc/agent-config'],
       ports: ['9091:9091'],
     },

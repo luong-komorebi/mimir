@@ -46,7 +46,10 @@ func InitLogger(logFormat string, logLevel dslog.Level, buffered bool, rateLimit
 		logger = log.With(logger, "ts", log.DefaultTimestampUTC, "caller", log.Caller(5))
 	}
 	// Must put the level filter last for efficiency.
-	logger = newFilter(logger, logLevel)
+	// logger = newFilter(logger, logLevel)
+	lvl := dslog.Level{}
+	lvl.Set("error")
+	logger = newFilter(logger, lvl)
 
 	// Set global logger.
 	Logger = logger
