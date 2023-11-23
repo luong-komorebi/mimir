@@ -1113,7 +1113,16 @@ func (h *httpAPI) Query(ctx context.Context, query string, ts time.Time, opts ..
 	}
 
 	var qres queryResult
-	return qres.v, warnings, json.Unmarshal(body, &qres)
+
+	jerr := json.Unmarshal(body, &qres)
+
+	fmt.Print("\n AHHH JSON2\n")
+	fmt.Print(string(body))
+	fmt.Print(jerr)
+	fmt.Print(qres.Type)
+	fmt.Print(qres.Result)
+
+	return qres.v, warnings, jerr
 }
 
 func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range, opts ...Option) (model.Value, Warnings, error) {
@@ -1142,7 +1151,15 @@ func (h *httpAPI) QueryRange(ctx context.Context, query string, r Range, opts ..
 
 	var qres queryResult
 
-	return qres.v, warnings, json.Unmarshal(body, &qres)
+	jerr := json.Unmarshal(body, &qres)
+
+	fmt.Print("\n AHHH JSON23\n")
+	fmt.Print(string(body))
+	fmt.Print(jerr)
+	fmt.Print(qres.Type)
+	fmt.Print(qres.Result)
+
+	return qres.v, warnings, jerr
 }
 
 func (h *httpAPI) Series(ctx context.Context, matches []string, startTime, endTime time.Time) ([]model.LabelSet, Warnings, error) {

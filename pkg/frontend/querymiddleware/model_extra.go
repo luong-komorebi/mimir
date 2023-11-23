@@ -376,6 +376,8 @@ func (s *SampleStream) UnmarshalJSON(data []byte) error {
 	if len(stream.Histograms) > 0 {
 		return fmt.Errorf("cannot unmarshal native histograms from JSON, but stream contains %d histograms", len(stream.Histograms))
 	}
+	fmt.Print("\n AHHH unmarshal \n")
+	fmt.Print(s)
 	return nil
 }
 
@@ -392,7 +394,8 @@ func (s *SampleStream) MarshalJSON() ([]byte, error) {
 			Histogram: mimirpb.FromFloatHistogramToSampleHistogram(h.Histogram.ToPrometheusModel()),
 		}
 	}
-
+	fmt.Print("\n AHHH marshal \n")
+	fmt.Print(s)
 	stream := struct {
 		Metric     model.Metric                  `json:"metric"`
 		Values     []mimirpb.Sample              `json:"values,omitempty"`
