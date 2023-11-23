@@ -305,6 +305,7 @@ std.manifestYamlDoc({
 
   prometheus:: {
     prometheus: {
+      // image: 'prom/prometheus-linux-amd64:bubblebobble',
       image: 'prom/prometheus:v2.47.2',
       command: [
         '--config.file=/etc/prometheus/prometheus.yaml',
