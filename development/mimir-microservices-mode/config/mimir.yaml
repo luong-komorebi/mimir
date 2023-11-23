@@ -68,6 +68,7 @@ blocks_storage:
     insecure:          true
 
 ruler:
+  query_stats_enabled: true
   ring:
     heartbeat_period:   5s
     heartbeat_timeout:  15s
