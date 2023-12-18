@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -41,6 +42,14 @@ const (
 	// DebugMetas is a directory for debug meta files that happen in the past. Useful for debugging.
 	DebugMetas = "debug/metas"
 )
+
+type TSDBBlockRecoverableError struct {
+	Message string
+}
+
+func (e *TSDBBlockRecoverableError) Error() string {
+	return e.Message
+}
 
 // Download downloads directory that is meant to be block directory. If any of the files
 // have a hash calculated in the meta file and it matches with what is in the destination path then
@@ -333,8 +342,8 @@ func MarkForNoCompact(ctx context.Context, logger log.Logger, bkt objstore.Bucke
 		return errors.Wrapf(err, "check exists %s in bucket", m)
 	}
 	if noCompactMarkExists {
-		level.Warn(logger).Log("msg", "requested to mark for no compaction, but file already exists; this should not happen; investigate", "err", errors.Errorf("file %s already exists in bucket", m))
-		return nil
+		return &TSDBBlockRecoverableError{
+			Message: fmt.Sprintf("requested to mark for no compaction, but file %s already exists in bucket", m)}
 	}
 
 	noCompactMark, err := json.Marshal(NoCompactMark{

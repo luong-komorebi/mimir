@@ -837,7 +837,10 @@ func (c *BucketCompactor) Compact(ctx context.Context, maxCompactionTime time.Du
 							"OutofOrderChunk: marking block with out-of-order series/chunks to as no compact to unblock compaction",
 							c.metrics.blocksMarkedForNoCompact.WithLabelValues(block.OutOfOrderChunksNoCompactReason),
 						)
-						if err == nil {
+						if err != nil && errors.As(err, &block.TSDBBlockRecoverableError{}) {
+							level.Warn(c.logger).Log("msg", "mark block is skipped for no critical reason, this should not happen", "err", err)
+						}
+						if err == nil || errors.As(err, &block.TSDBBlockRecoverableError{}) {
 							mtx.Lock()
 							finishedAllJobs = false
 							mtx.Unlock()
@@ -857,7 +860,10 @@ func (c *BucketCompactor) Compact(ctx context.Context, maxCompactionTime time.Du
 							"UnhealthyBlock: marking unhealthy block as no compact to unblock compaction",
 							c.metrics.blocksMarkedForNoCompact.WithLabelValues(block.CriticalNoCompactReason),
 						)
-						if err == nil {
+						if err != nil && errors.As(err, &block.TSDBBlockRecoverableError{}) {
+							level.Warn(c.logger).Log("msg", "mark block is skipped for no critical reason, this should not happen", "err", err)
+						}
+						if err == nil || errors.As(err, &block.TSDBBlockRecoverableError{}) {
 							mtx.Lock()
 							finishedAllJobs = false
 							mtx.Unlock()
