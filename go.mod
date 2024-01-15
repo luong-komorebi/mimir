@@ -56,7 +56,8 @@ require (
 	cloud.google.com/go/storage v1.37.0
 	github.com/alecthomas/chroma/v2 v2.12.0
 	github.com/alecthomas/kingpin/v2 v2.4.0
-	github.com/aws/aws-sdk-go v1.50.15
+	github.com/aws/aws-sdk-go v1.50.8
+	github.com/bboreham/go-loser v0.0.0-20230920113527-fcc2c21820a3
 	github.com/dennwc/varint v1.0.0
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 	github.com/google/go-cmp v0.6.0
@@ -91,7 +92,6 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.5.1 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.5.1 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.1 // indirect
-	github.com/bboreham/go-loser v0.0.0-20230920113527-fcc2c21820a3 // indirect
 	github.com/cenkalti/backoff/v3 v3.2.2 // indirect
 	github.com/go-test/deep v1.1.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.0 // indirect
@@ -256,7 +256,7 @@ require (
 )
 
 // Using a fork of Prometheus with Mimir-specific changes.
-replace github.com/prometheus/prometheus => github.com/grafana/mimir-prometheus v0.0.0-20240213153929-d32b69f03433
+replace github.com/prometheus/prometheus => github.com/grafana/mimir-prometheus v0.0.0-20240206073102-d654c089d313
 
 // Replace memberlist with our fork which includes some fixes that haven't been
 // merged upstream yet:

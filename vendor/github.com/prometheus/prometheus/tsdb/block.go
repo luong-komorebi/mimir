@@ -61,6 +61,8 @@ type IndexWriter interface {
 
 // IndexReader provides reading access of serialized index data.
 type IndexReader interface {
+	index.LabelsGetter
+
 	// Symbols return an iterator over sorted string symbols that may occur in
 	// series' labels and indices. It is not safe to use the returned strings
 	// beyond the lifetime of the index reader.
@@ -72,11 +74,17 @@ type IndexReader interface {
 	// LabelValues returns possible label values which may not be sorted.
 	LabelValues(ctx context.Context, name string, matchers ...*labels.Matcher) ([]string, error)
 
+	// LabelValuesStream returns an iterator over matching label values.
+	LabelValuesStream(ctx context.Context, name string, matchers ...*labels.Matcher) storage.LabelValues
+
 	// Postings returns the postings list iterator for the label pairs.
 	// The Postings here contain the offsets to the series inside the index.
 	// Found IDs are not strictly required to point to a valid Series, e.g.
 	// during background garbage collections.
 	Postings(ctx context.Context, name string, values ...string) (index.Postings, error)
+
+	// PostingsForRegexp returns an iterator over postings matching the provided regexp label matcher.
+	PostingsForRegexp(ctx context.Context, m *labels.Matcher) index.Postings
 
 	// PostingsForMatchers assembles a single postings iterator based on the given matchers.
 	// The resulting postings are not ordered by series.
@@ -526,6 +534,21 @@ func (r blockIndexReader) LabelValues(ctx context.Context, name string, matchers
 	return labelValuesWithMatchers(ctx, r.ir, name, matchers...)
 }
 
+func (r blockIndexReader) LabelValuesStream(ctx context.Context, name string, matchers ...*labels.Matcher) storage.LabelValues {
+	ownMatchers := 0
+	for _, m := range matchers {
+		if m.Name == name {
+			ownMatchers++
+		}
+	}
+	if ownMatchers == len(matchers) {
+		return r.ir.LabelValuesStream(ctx, name, matchers...)
+	}
+
+	// There are matchers on other label names than the requested one, so will need to intersect matching series
+	return labelValuesForMatchersStream(ctx, r.ir, name, matchers)
+}
+
 func (r blockIndexReader) LabelNames(ctx context.Context, matchers ...*labels.Matcher) ([]string, error) {
 	if len(matchers) == 0 {
 		return r.b.LabelNames(ctx)
@@ -540,6 +563,10 @@ func (r blockIndexReader) Postings(ctx context.Context, name string, values ...s
 		return p, fmt.Errorf("block: %s: %w", r.b.Meta().ULID, err)
 	}
 	return p, nil
+}
+
+func (r blockIndexReader) PostingsForRegexp(ctx context.Context, m *labels.Matcher) index.Postings {
+	return r.ir.PostingsForRegexp(ctx, m)
 }
 
 func (r blockIndexReader) PostingsForMatchers(ctx context.Context, concurrent bool, ms ...*labels.Matcher) (index.Postings, error) {
@@ -567,6 +594,13 @@ func (r blockIndexReader) LabelValuesExcluding(postings index.Postings, name str
 
 func (r blockIndexReader) Series(ref storage.SeriesRef, builder *labels.ScratchBuilder, chks *[]chunks.Meta) error {
 	if err := r.ir.Series(ref, builder, chks); err != nil {
+		return fmt.Errorf("block: %s: %w", r.b.Meta().ULID, err)
+	}
+	return nil
+}
+
+func (r blockIndexReader) Labels(ref storage.SeriesRef, builder *labels.ScratchBuilder) error {
+	if err := r.ir.Labels(ref, builder); err != nil {
 		return fmt.Errorf("block: %s: %w", r.b.Meta().ULID, err)
 	}
 	return nil
