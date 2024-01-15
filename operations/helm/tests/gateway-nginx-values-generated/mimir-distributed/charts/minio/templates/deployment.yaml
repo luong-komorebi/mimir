@@ -6,7 +6,7 @@ metadata:
   name: gateway-nginx-values-minio
   labels:
     app: minio
-    chart: minio-5.0.14
+    chart: minio-5.0.15
     release: gateway-nginx-values
     heritage: Helm
 spec:
@@ -27,8 +27,8 @@ spec:
         app: minio
         release: gateway-nginx-values
       annotations:
-        checksum/secrets: abcaf9b2c4ea7db35628be51996fd0c48ea9e5f15de12b8a220c77f76c9aa1d0
-        checksum/config: 2f4416d7866c8963263db9d235c3a966fea9c994614ef33264474adba1e27def
+        checksum/secrets: 8f6f8a43040d29621306e1de41b05012ebcbb235fb1a2f4a09431253d4aa25e5
+        checksum/config: ba39384d476c911a9c04c16a8864d4a0a05a9cb1013b67a4e5d9925d44d24507
     spec:
       securityContext:
         runAsUser: 1000
@@ -39,7 +39,7 @@ spec:
       serviceAccountName: minio-sa
       containers:
         - name: minio
-          image: "quay.io/minio/minio:RELEASE.2023-09-30T07-02-29Z"
+          image: "quay.io/minio/minio:RELEASE.2024-01-11T07-46-16Z"
           imagePullPolicy: IfNotPresent
           command:
             - "/bin/sh"

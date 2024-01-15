@@ -6,7 +6,7 @@ metadata:
   name: test-oss-multizone-values-minio
   labels:
     app: minio
-    chart: minio-5.0.14
+    chart: minio-5.0.15
     release: test-oss-multizone-values
     heritage: Helm
 spec:
@@ -27,8 +27,8 @@ spec:
         app: minio
         release: test-oss-multizone-values
       annotations:
-        checksum/secrets: 5ad335e35445148157c8c06259dfe701b6af31a7a37cefceea742eb16432d76a
-        checksum/config: 9ea25e24603a12c086de56803d1228680c31370ccebc0b929a839094ea7e19df
+        checksum/secrets: 509c0ef0d9bec5ea4bdbc5e9ad26e3cc8c31c8b09afb64ac1b8149440f148b07
+        checksum/config: 5ff1c1966cc52401fdc1d110dff0aa107ef93bdfbde28d2aa7582d88bd32dbe7
     spec:
       securityContext:
         runAsUser: 1000
@@ -39,7 +39,7 @@ spec:
       serviceAccountName: minio-sa
       containers:
         - name: minio
-          image: "quay.io/minio/minio:RELEASE.2023-09-30T07-02-29Z"
+          image: "quay.io/minio/minio:RELEASE.2024-01-11T07-46-16Z"
           imagePullPolicy: IfNotPresent
           command:
             - "/bin/sh"
