@@ -87,6 +87,7 @@ func TestMimirtoolBackfill(t *testing.T) {
 
 	// Start Mimir compactor.
 	compactor := e2emimir.NewCompactor("compactor", consul.NetworkHTTPEndpoint(), flags)
+	require.NoError(t, setDirPermission(s.SharedDir()))
 	require.NoError(t, s.StartAndWaitReady(compactor))
 
 	{
@@ -217,6 +218,7 @@ func TestBackfillSlowUploadSpeed(t *testing.T) {
 
 	// Start Mimir compactor.
 	compactor := e2emimir.NewCompactor("compactor", consul.NetworkHTTPEndpoint(), flags)
+	require.NoError(t, setDirPermission(s.SharedDir()))
 	require.NoError(t, s.StartAndWaitReady(compactor))
 
 	// Create block that we will try to upload.

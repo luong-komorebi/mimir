@@ -515,6 +515,7 @@ func TestRulerAlertmanagerTLS(t *testing.T) {
 		getServerHTTPTLSFlags(),
 	)
 	am1 := e2emimir.NewAlertmanagerWithTLS("alertmanager1", amFlags)
+	require.NoError(t, setDirPermission(s.SharedDir()))
 	require.NoError(t, s.StartAndWaitReady(am1))
 
 	// Configure the ruler.
