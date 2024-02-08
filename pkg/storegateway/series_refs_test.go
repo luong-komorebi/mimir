@@ -1456,27 +1456,6 @@ func assertSeriesChunkRefsSetsEqual(t testing.TB, blockID ulid.ULID, blockDir st
 	}
 }
 
-// Simpler version of assertSeriesChunkRefsSetsEqual, doing the same as DeepEqual would
-// except calling Labels.Equals.
-func assertSeriesChunkRefsSetsEqualSimple(tb testing.TB, a, b []seriesChunkRefsSet) {
-	tb.Helper()
-	assert.Equal(tb, len(a), len(b))
-	if len(a) != len(b) {
-		return
-	}
-	for i := range a {
-		assert.Equal(tb, a[i].releasable, b[i].releasable)
-		assert.Equal(tb, len(a[i].series), len(b[i].series))
-		if len(a[i].series) != len(b[i].series) {
-			return
-		}
-		for j := range a[i].series {
-			assert.True(tb, labels.Equal(a[i].series[j].lset, b[i].series[j].lset))
-			assert.Equal(tb, a[i].series[j].refs, b[i].series[j].refs)
-		}
-	}
-}
-
 func assertEqualf[T comparable](t testing.TB, a, b T, msg string, args ...any) {
 	if a != b {
 		t.Helper()
@@ -1818,7 +1797,7 @@ func TestOpenBlockSeriesChunkRefsSetsIterator_pendingMatchers(t *testing.T) {
 			indexReader := newBucketIndexReader(block, selectAllStrategy{})
 			defer indexReader.Close()
 
-			assertSeriesChunkRefsSetsEqualSimple(t, querySeries(indexReader), querySeries(indexReaderOmittingMatchers))
+			testutil.RequireEqual(t, querySeries(indexReader), querySeries(indexReaderOmittingMatchers))
 		})
 	}
 
