@@ -283,6 +283,7 @@ type Ingester interface {
 	UserRegistryHandler(http.ResponseWriter, *http.Request)
 	TenantsHandler(http.ResponseWriter, *http.Request)
 	TenantTSDBHandler(http.ResponseWriter, *http.Request)
+	DeadlineExceededHandler(http.ResponseWriter, *http.Request)
 }
 
 // RegisterIngester registers the ingester HTTP and gRPC services.
@@ -305,6 +306,8 @@ func (a *API) RegisterIngester(i Ingester) {
 
 	a.RegisterRoute("/ingester/tenants", http.HandlerFunc(i.TenantsHandler), false, true, "GET")
 	a.RegisterRoute("/ingester/tsdb/{tenant}", http.HandlerFunc(i.TenantTSDBHandler), false, true, "GET")
+
+	a.RegisterRoute("/ingester/deadline-exceeded/{duration}", http.HandlerFunc(i.DeadlineExceededHandler), false, true, "GET", "POST")
 }
 
 // RegisterRuler registers routes associated with the Ruler service.

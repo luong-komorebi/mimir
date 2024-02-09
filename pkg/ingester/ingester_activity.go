@@ -193,6 +193,15 @@ func (i *ActivityTrackerWrapper) TenantTSDBHandler(w http.ResponseWriter, r *htt
 	i.ing.TenantTSDBHandler(w, r)
 }
 
+func (i *ActivityTrackerWrapper) DeadlineExceededHandler(w http.ResponseWriter, r *http.Request) {
+	ix := i.tracker.Insert(func() string {
+		return requestActivity(r.Context(), "Ingester/DeadlineExceededEnabledHandler", nil)
+	})
+	defer i.tracker.Delete(ix)
+
+	i.ing.DeadlineExceededHandler(w, r)
+}
+
 func requestActivity(ctx context.Context, name string, req interface{}) string {
 	userID, _ := tenant.TenantID(ctx)
 	traceID, _ := tracing.ExtractSampledTraceID(ctx)
