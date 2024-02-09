@@ -106,6 +106,9 @@ func (r *PartitionReader) start(ctx context.Context) error {
 	if err != nil {
 		return errors.Wrap(err, "starting service manager")
 	}
+
+	// TODO replayAtStartup()
+
 	return nil
 }
 
@@ -122,20 +125,54 @@ func (r *PartitionReader) stop(error) error {
 
 func (r *PartitionReader) run(ctx context.Context) error {
 	for ctx.Err() == nil {
-		fetches := r.client.PollFetches(ctx)
-		r.recordFetchesMetrics(fetches)
-		r.logFetchErrs(fetches)
-		fetches = filterOutErrFetches(fetches)
-
-		// TODO consumeFetches() may get interrupted in the middle because of ctx canceled due to PartitionReader stopped.
-		// 		We should improve it, but we shouldn't just pass a context.Background() because if consumption is stuck
-		// 		then PartitionReader will never stop.
-		r.consumeFetches(ctx, fetches)
-		r.enqueueCommit(fetches)
-		r.notifyLastConsumedOffset(fetches)
+		r.processNextFetches(ctx)
 	}
 
 	return nil
+}
+
+func (r *PartitionReader) processNextFetches(ctx context.Context) {
+	fetches := r.client.PollFetches(ctx)
+	r.recordFetchesMetrics(fetches)
+	r.logFetchErrs(fetches)
+	fetches = filterOutErrFetches(fetches)
+
+	// TODO consumeFetches() may get interrupted in the middle because of ctx canceled due to PartitionReader stopped.
+	// 		We should improve it, but we shouldn't just pass a context.Background() because if consumption is stuck
+	// 		then PartitionReader will never stop.
+	r.consumeFetches(ctx, fetches)
+	r.enqueueCommit(fetches)
+	r.notifyLastConsumedOffset(fetches)
+}
+
+// TODO unit test
+// TODO logs for better observability
+// TODO add a max replay duration, after which we startup anyway?
+func (r *PartitionReader) replayAtStartup(ctx context.Context, maxLag time.Duration) error {
+	for {
+		lastProducedOffset, err := r.offsetReader.FetchLastProducedOffset(ctx)
+		if err != nil {
+			return err
+		}
+
+		lastProducedOffsetFetchedAt := time.Now()
+
+		for {
+			// Continue reading until we reached the desired offset.
+			lastConsumedOffset := r.consumedOffsetWatcher.LastConsumedOffset()
+			if lastProducedOffset <= lastConsumedOffset {
+				break
+			}
+
+			r.processNextFetches(ctx)
+		}
+
+		// If it took less than the max desired lag to replay the partition
+		// then we can stop here, otherwise we'll have to redo it.
+		if time.Since(lastProducedOffsetFetchedAt) <= maxLag {
+			return nil
+		}
+	}
 }
 
 func filterOutErrFetches(fetches kgo.Fetches) kgo.Fetches {
