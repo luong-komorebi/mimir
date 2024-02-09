@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
+	"github.com/gorilla/mux"
 	"github.com/grafana/dskit/concurrency"
 	"github.com/grafana/dskit/middleware"
 	"github.com/grafana/dskit/ring"
@@ -316,6 +317,8 @@ type Ingester struct {
 	errorSamplers ingesterErrSamplers
 
 	ingestReader *ingest.PartitionReader
+
+	deadlineExceededEnabled atomic.Bool
 }
 
 func newIngester(cfg Config, limits *validation.Overrides, registerer prometheus.Registerer, logger log.Logger) (*Ingester, error) {
@@ -3362,8 +3365,42 @@ func (i *Ingester) checkAvailable() error {
 	return newUnavailableError(s)
 }
 
+func (i *Ingester) DeadlineExceededHandler(w http.ResponseWriter, req *http.Request) {
+	vars := mux.Vars(req)
+	durationArg := vars["duration"]
+	var (
+		duration time.Duration
+		err      error
+	)
+	if durationArg == "" {
+		util.WriteTextResponse(w, "DeadlineExceededHandler duration can't be empty")
+		level.Info(i.logger).Log("msg", "DeadlineExceededHandler: duration has not been specified, so the default duration of 10s will be used", "ingester", i.cfg.IngesterRing.InstanceID)
+		duration = 10 * time.Second
+	} else {
+		duration, err = time.ParseDuration(durationArg)
+		if err != nil {
+			msg := fmt.Sprintf("DeadlineExceededHandler: invalid duration '%s' has been specified, so the default duration of 10s will be used", durationArg)
+			level.Info(i.logger).Log("msg", msg, "ingester", i.cfg.IngesterRing.InstanceID)
+		}
+	}
+	i.deadlineExceededEnabled.Store(true)
+	level.Info(i.logger).Log("msg", "DeadlineExceededHandler: started producing DeadlineExceeded errors", "ingester", i.cfg.IngesterRing.InstanceID)
+	time.Sleep(duration)
+	i.deadlineExceededEnabled.Store(false)
+	level.Info(i.logger).Log("msg", "DeadlineExceededHandler: stopped producing DeadlineExceeded errors", "ingester", i.cfg.IngesterRing.InstanceID)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // Push implements client.IngesterServer
 func (i *Ingester) Push(ctx context.Context, req *mimirpb.WriteRequest) (*mimirpb.WriteResponse, error) {
+	if i.deadlineExceededEnabled.Load() {
+		userID, err := tenant.TenantID(ctx)
+		if err != nil {
+			return nil, err
+		}
+		time.Sleep(5 * time.Second)
+		level.Error(i.logger).Log("msg", "slept for 5s and will continue", "user", userID, "ingester", i.cfg.IngesterRing.InstanceID)
+	}
 	err := i.PushWithCleanup(ctx, req, func() { mimirpb.ReuseSlice(req.Timeseries) })
 	if err == nil {
 		return &mimirpb.WriteResponse{}, nil
