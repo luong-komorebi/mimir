@@ -1195,6 +1195,10 @@ instance_limits:
 # owned series as a result of detected change.
 # CLI flag: -ingester.owned-series-update-interval
 [owned_series_update_interval: <duration> | default = 15s]
+
+# Specifies how long should starting of the ingester wait.
+# CLI flag: -ingester.long-creation
+[long_creation category:: <duration> | default = 0s]
 ```
 
 ### querier

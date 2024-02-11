@@ -187,6 +187,8 @@ type Config struct {
 
 	// This config is dynamically injected because defined outside the ingester config.
 	IngestStorageConfig ingest.Config `yaml:"-"`
+
+	LongCreation time.Duration `yaml:"long_creation category:"experimental""`
 }
 
 // RegisterFlags adds the flags required to config this to the given FlagSet
@@ -208,6 +210,7 @@ func (cfg *Config) RegisterFlags(f *flag.FlagSet, logger log.Logger) {
 	f.BoolVar(&cfg.UseIngesterOwnedSeriesForLimits, "ingester.use-ingester-owned-series-for-limits", false, "When enabled, only series currently owned by ingester according to the ring are used when checking user per-tenant series limit.")
 	f.BoolVar(&cfg.UpdateIngesterOwnedSeries, "ingester.track-ingester-owned-series", false, "This option enables tracking of ingester-owned series based on ring state, even if -ingester.use-ingester-owned-series-for-limits is disabled.")
 	f.DurationVar(&cfg.OwnedSeriesUpdateInterval, "ingester.owned-series-update-interval", 15*time.Second, "How often to check for ring changes and possibly recompute owned series as a result of detected change.")
+	f.DurationVar(&cfg.LongCreation, "ingester.long-creation", 0, "Specifies how long should starting of the ingester wait.")
 
 	// The ingester.return-only-grpc-errors flag has been deprecated.
 	// According to the migration plan (https://github.com/grafana/mimir/issues/6008#issuecomment-1854320098)
@@ -363,6 +366,9 @@ func newIngester(cfg Config, limits *validation.Overrides, registerer prometheus
 
 // New returns an Ingester that uses Mimir block storage.
 func New(cfg Config, limits *validation.Overrides, ingestersRing ring.ReadRing, activeGroupsCleanupService *util.ActiveGroupsCleanupService, registerer prometheus.Registerer, logger log.Logger) (*Ingester, error) {
+	if cfg.LongCreation != 0 {
+		time.Sleep(cfg.LongCreation)
+	}
 	i, err := newIngester(cfg, limits, registerer, logger)
 	if err != nil {
 		return nil, err

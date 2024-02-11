@@ -3085,6 +3085,16 @@
           "fieldFlag": "ingester.owned-series-update-interval",
           "fieldType": "duration",
           "fieldCategory": "experimental"
+        },
+        {
+          "kind": "field",
+          "name": "long_creation category:",
+          "required": false,
+          "desc": "Specifies how long should starting of the ingester wait.",
+          "fieldValue": null,
+          "fieldDefaultValue": 0,
+          "fieldFlag": "ingester.long-creation",
+          "fieldType": "duration"
         }
       ],
       "fieldValue": null,
