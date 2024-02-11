@@ -25,30 +25,30 @@ import (
 
 func TestIsFailure(t *testing.T) {
 	t.Run("no error", func(t *testing.T) {
-		require.False(t, isFailure(nil))
+		require.False(t, isFailure(nil, cfg))
 	})
 
 	t.Run("context cancelled", func(t *testing.T) {
-		require.False(t, isFailure(context.Canceled))
-		require.False(t, isFailure(fmt.Errorf("%w", context.Canceled)))
+		require.False(t, isFailure(context.Canceled, cfg))
+		require.False(t, isFailure(fmt.Errorf("%w", context.Canceled), cfg))
 	})
 
 	t.Run("gRPC context cancelled", func(t *testing.T) {
 		err := status.Error(codes.Canceled, "cancelled!")
-		require.False(t, isFailure(err))
-		require.False(t, isFailure(fmt.Errorf("%w", err)))
+		require.False(t, isFailure(err, cfg))
+		require.False(t, isFailure(fmt.Errorf("%w", err), cfg))
 	})
 
 	t.Run("gRPC deadline exceeded", func(t *testing.T) {
 		err := status.Error(codes.DeadlineExceeded, "broken!")
-		require.True(t, isFailure(err))
-		require.True(t, isFailure(fmt.Errorf("%w", err)))
+		require.True(t, isFailure(err, cfg))
+		require.True(t, isFailure(fmt.Errorf("%w", err), cfg))
 	})
 
 	t.Run("gRPC unavailable with INSTANCE_LIMIT details", func(t *testing.T) {
 		err := perInstanceLimitError(t)
-		require.True(t, isFailure(err))
-		require.True(t, isFailure(fmt.Errorf("%w", err)))
+		require.True(t, isFailure(err, cfg))
+		require.True(t, isFailure(fmt.Errorf("%w", err), cfg))
 	})
 
 	t.Run("gRPC unavailable with SERVICE_UNAVAILABLE details is not a failure", func(t *testing.T) {
@@ -56,14 +56,14 @@ func TestIsFailure(t *testing.T) {
 		stat, err := stat.WithDetails(&mimirpb.ErrorDetails{Cause: mimirpb.SERVICE_UNAVAILABLE})
 		require.NoError(t, err)
 		err = stat.Err()
-		require.False(t, isFailure(err))
-		require.False(t, isFailure(fmt.Errorf("%w", err)))
+		require.False(t, isFailure(err, cfg))
+		require.False(t, isFailure(fmt.Errorf("%w", err), cfg))
 	})
 
 	t.Run("gRPC unavailable without details is not a failure", func(t *testing.T) {
 		err := status.Error(codes.Unavailable, "broken!")
-		require.False(t, isFailure(err))
-		require.False(t, isFailure(fmt.Errorf("%w", err)))
+		require.False(t, isFailure(err, cfg))
+		require.False(t, isFailure(fmt.Errorf("%w", err), cfg))
 	})
 }
 

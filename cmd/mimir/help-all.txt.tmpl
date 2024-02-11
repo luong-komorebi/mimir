@@ -1279,6 +1279,8 @@ Usage of ./cmd/mimir/mimir:
     	[experimental] How long the circuit breaker will stay in the open state before allowing some requests (default 10s)
   -ingester.client.circuit-breaker.enabled
     	[experimental] Enable circuit breaking when making requests to ingesters
+  -ingester.client.circuit-breaker.fail-on-unavailable-errors
+    	[experimental] When set to true Unavailable errors will open circuit breakers
   -ingester.client.circuit-breaker.failure-execution-threshold uint
     	[experimental] How many requests must have been executed in period for the circuit breaker to be eligible to open for the rate of failures (default 100)
   -ingester.client.circuit-breaker.failure-threshold uint

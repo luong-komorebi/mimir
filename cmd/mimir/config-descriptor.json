@@ -2231,10 +2231,10 @@
               "kind": "field",
               "name": "enabled",
               "required": false,
-              "desc": "Enable circuit breaking when making requests to ingesters",
+              "desc": "When set to true Unavailable errors will open circuit breakers",
               "fieldValue": null,
               "fieldDefaultValue": false,
-              "fieldFlag": "ingester.client.circuit-breaker.enabled",
+              "fieldFlag": "ingester.client.circuit-breaker.fail-on-unavailable-errors",
               "fieldType": "boolean",
               "fieldCategory": "experimental"
             },
@@ -2280,6 +2280,16 @@
               "fieldDefaultValue": 10000000000,
               "fieldFlag": "ingester.client.circuit-breaker.cooldown-period",
               "fieldType": "duration",
+              "fieldCategory": "experimental"
+            },
+            {
+              "kind": "field",
+              "name": "fail_on_unavailable_errors",
+              "required": false,
+              "desc": "",
+              "fieldValue": null,
+              "fieldDefaultValue": false,
+              "fieldType": "boolean",
               "fieldCategory": "experimental"
             }
           ],

@@ -93,7 +93,7 @@ func NewCircuitBreaker(inst ring.InstanceDesc, cfg CircuitBreakerConfig, metrics
 			level.Info(logger).Log("msg", "circuit breaker is half-open", "ingester", inst.Id, "previous", event.OldState, "current", event.NewState)
 		}).
 		HandleIf(func(r any, err error) bool {
-			isFail := isFailure(err)
+			isFail := isFailure(err, cfg)
 			if isFail {
 				level.Error(logger).Log("msg", "circuit breaker detected a failure", "ingester", inst.Id, "err", err)
 			}
@@ -122,7 +122,7 @@ func NewCircuitBreaker(inst ring.InstanceDesc, cfg CircuitBreakerConfig, metrics
 	}
 }
 
-func isFailure(err error) bool {
+func isFailure(err error, cfg CircuitBreakerConfig) bool {
 	if err == nil {
 		return false
 	}
@@ -133,6 +133,12 @@ func isFailure(err error) bool {
 	if stat, ok := grpcutil.ErrorToStatus(err); ok {
 		if stat.Code() == codes.DeadlineExceeded {
 			return true
+		}
+
+		if cfg.FailOnUnavailableErrors {
+			if stat.Code() == codes.Unavailable {
+				return true
+			}
 		}
 
 		details := stat.Details()
