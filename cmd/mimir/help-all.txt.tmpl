@@ -1343,6 +1343,8 @@ Usage of ./cmd/mimir/mimir:
     	[deprecated] When enabled, in-flight write requests limit is checked as soon as the gRPC request is received, before the request is decoded and parsed. (default true)
   -ingester.log-utilization-based-limiter-cpu-samples
     	[experimental] Enable logging of utilization based limiter CPU samples.
+  -ingester.long-creation duration
+    	Specifies how long should starting of the ingester wait.
   -ingester.max-global-exemplars-per-user int
     	[experimental] The maximum number of exemplars in memory, across the cluster. 0 to disable exemplars ingestion.
   -ingester.max-global-metadata-per-metric int
