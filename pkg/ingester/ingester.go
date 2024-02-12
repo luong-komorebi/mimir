@@ -364,9 +364,6 @@ func newIngester(cfg Config, limits *validation.Overrides, registerer prometheus
 
 // New returns an Ingester that uses Mimir block storage.
 func New(cfg Config, limits *validation.Overrides, ingestersRing ring.ReadRing, activeGroupsCleanupService *util.ActiveGroupsCleanupService, registerer prometheus.Registerer, logger log.Logger) (*Ingester, error) {
-	if cfg.LongCreation != 0 {
-		time.Sleep(cfg.LongCreation)
-	}
 	i, err := newIngester(cfg, limits, registerer, logger)
 	if err != nil {
 		return nil, err
@@ -479,6 +476,13 @@ func (i *Ingester) starting(ctx context.Context) (err error) {
 			_ = services.StopAndAwaitTerminated(context.Background(), i.lifecycler)
 		}
 	}()
+
+	if i.cfg.LongCreation != 0 {
+		level.Info(i.logger).Log("msg", "Long creation has been configured", "duration (s)", i.cfg.LongCreation.Seconds(), "ingester", i.cfg.IngesterRing.InstanceID)
+		time.Sleep(i.cfg.LongCreation)
+		level.Info(i.logger).Log("msg", "Long creation has been completed", "duration (s)", i.cfg.LongCreation.Seconds(), "ingester", i.cfg.IngesterRing.InstanceID)
+	}
+
 	if err := i.openExistingTSDB(ctx); err != nil {
 		// Try to rollback and close opened TSDBs before halting the ingester.
 		i.closeAllTSDB()
