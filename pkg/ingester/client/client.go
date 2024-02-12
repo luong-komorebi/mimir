@@ -118,7 +118,7 @@ func (cfg *CircuitBreakerConfig) RegisterFlagsWithPrefix(prefix string, f *flag.
 	f.UintVar(&cfg.FailureExecutionThreshold, prefix+".circuit-breaker.failure-execution-threshold", 100, "How many requests must have been executed in period for the circuit breaker to be eligible to open for the rate of failures")
 	f.DurationVar(&cfg.ThresholdingPeriod, prefix+".circuit-breaker.thresholding-period", time.Minute, "Moving window of time that the percentage of failed requests is computed over")
 	f.DurationVar(&cfg.CooldownPeriod, prefix+".circuit-breaker.cooldown-period", 10*time.Second, "How long the circuit breaker will stay in the open state before allowing some requests")
-	f.BoolVar(&cfg.Enabled, prefix+".circuit-breaker.fail-on-unavailable-errors", false, "When set to true Unavailable errors will open circuit breakers")
+	f.BoolVar(&cfg.FailOnUnavailableErrors, prefix+".circuit-breaker.fail-on-unavailable-errors", false, "When set to true Unavailable errors will open circuit breakers")
 }
 
 func (cfg *CircuitBreakerConfig) Validate() error {

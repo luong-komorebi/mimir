@@ -2343,9 +2343,8 @@ The `ingester_client` block configures how the distributors connect to the inges
 [grpc_client_config: <grpc_client>]
 
 circuit_breaker:
-  # (experimental) When set to true Unavailable errors will open circuit
-  # breakers
-  # CLI flag: -ingester.client.circuit-breaker.fail-on-unavailable-errors
+  # (experimental) Enable circuit breaking when making requests to ingesters
+  # CLI flag: -ingester.client.circuit-breaker.enabled
   [enabled: <boolean> | default = false]
 
   # (experimental) Max percentage of requests that can fail over period before
@@ -2368,8 +2367,10 @@ circuit_breaker:
   # CLI flag: -ingester.client.circuit-breaker.cooldown-period
   [cooldown_period: <duration> | default = 10s]
 
-  # (experimental)
-  [fail_on_unavailable_errors: <boolean> | default = ]
+  # (experimental) When set to true Unavailable errors will open circuit
+  # breakers
+  # CLI flag: -ingester.client.circuit-breaker.fail-on-unavailable-errors
+  [fail_on_unavailable_errors: <boolean> | default = false]
 
 # (deprecated) If set to true, gRPC status codes will be reported in
 # "status_code" label of "cortex_ingester_client_request_duration_seconds"

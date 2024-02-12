@@ -2231,10 +2231,10 @@
               "kind": "field",
               "name": "enabled",
               "required": false,
-              "desc": "When set to true Unavailable errors will open circuit breakers",
+              "desc": "Enable circuit breaking when making requests to ingesters",
               "fieldValue": null,
               "fieldDefaultValue": false,
-              "fieldFlag": "ingester.client.circuit-breaker.fail-on-unavailable-errors",
+              "fieldFlag": "ingester.client.circuit-breaker.enabled",
               "fieldType": "boolean",
               "fieldCategory": "experimental"
             },
@@ -2286,9 +2286,10 @@
               "kind": "field",
               "name": "fail_on_unavailable_errors",
               "required": false,
-              "desc": "",
+              "desc": "When set to true Unavailable errors will open circuit breakers",
               "fieldValue": null,
               "fieldDefaultValue": false,
+              "fieldFlag": "ingester.client.circuit-breaker.fail-on-unavailable-errors",
               "fieldType": "boolean",
               "fieldCategory": "experimental"
             }
