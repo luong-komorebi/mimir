@@ -763,6 +763,14 @@ retry_after_header:
   # CLI flag: -distributor.retry-after-header.max-backoff-exponent
   [max_backoff_exponent: <int> | default = 5]
 
+  # (experimental) When enabled, calculates the Retry-After delay taking into
+  # account circuit breaker's remaining delay. In this case the Retry-After
+  # delay must be greater or equal to the circuit breaker's remaining delay, if
+  # that value doesn't exceed the maximum allowed retry duration calculated as
+  # base-seconds * 2^max-backoff-exponent.
+  # CLI flag: -distributor.retry-after-header.circuit-breaker-awareness-enabled
+  [circuit_breaker_awareness_enabled: <boolean> | default = false]
+
 ha_tracker:
   # Enable the distributors HA tracker so that it can accept samples from
   # Prometheus HA replicas gracefully (requires labels).

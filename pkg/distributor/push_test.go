@@ -859,6 +859,7 @@ func TestHandler_ErrorTranslation(t *testing.T) {
 func TestHandler_HandleRetryAfterHeader(t *testing.T) {
 	testCases := []struct {
 		name          string
+		err           error
 		responseCode  int
 		retryAttempt  string
 		retryCfg      RetryConfig
@@ -950,6 +951,46 @@ func TestHandler_HandleRetryAfterHeader(t *testing.T) {
 			minRetryAfter: 6,
 			maxRetryAfter: 12,
 		},
+		{
+			name:          "circuitBreakerOpenError, HTTP 500, Retry-After with circuit breaker awareness, remaining delay 2s and Retry-Attempts 1",
+			err:           circuitBreakerOpenError{err: client.NewErrCircuitBreakerOpen(2 * time.Second)},
+			responseCode:  http.StatusInternalServerError,
+			expectRetry:   true,
+			retryAttempt:  "1",
+			retryCfg:      RetryConfig{Enabled: true, BaseSeconds: 3, MaxBackoffExponent: 2, CircuitBreakerAwarenessEnabled: true},
+			minRetryAfter: 3,
+			maxRetryAfter: 6,
+		},
+		{
+			name:          "circuitBreakerOpenError, HTTP 500, Retry-After with circuit breaker awareness, remaining delay 10s and Retry-Attempts 1",
+			err:           circuitBreakerOpenError{err: client.NewErrCircuitBreakerOpen(10 * time.Second)},
+			responseCode:  http.StatusInternalServerError,
+			expectRetry:   true,
+			retryAttempt:  "1",
+			retryCfg:      RetryConfig{Enabled: true, BaseSeconds: 3, MaxBackoffExponent: 2, CircuitBreakerAwarenessEnabled: true},
+			minRetryAfter: 10,
+			maxRetryAfter: 10,
+		},
+		{
+			name:          "circuitBreakerOpenError, HTTP 500, Retry-After with circuit breaker awareness, remaining delay 10s and Retry-Attempts 2",
+			err:           circuitBreakerOpenError{err: client.NewErrCircuitBreakerOpen(10 * time.Second)},
+			responseCode:  http.StatusInternalServerError,
+			expectRetry:   true,
+			retryAttempt:  "1",
+			retryCfg:      RetryConfig{Enabled: true, BaseSeconds: 3, MaxBackoffExponent: 2, CircuitBreakerAwarenessEnabled: true},
+			minRetryAfter: 10,
+			maxRetryAfter: 12,
+		},
+		{
+			name:          "circuitBreakerOpenError, HTTP 500, Retry-After with circuit breaker awareness, remaining delay 20s and Retry-Attempts 2",
+			err:           circuitBreakerOpenError{err: client.NewErrCircuitBreakerOpen(20 * time.Second)},
+			responseCode:  http.StatusInternalServerError,
+			expectRetry:   true,
+			retryAttempt:  "1",
+			retryCfg:      RetryConfig{Enabled: true, BaseSeconds: 3, MaxBackoffExponent: 2, CircuitBreakerAwarenessEnabled: true},
+			minRetryAfter: 12,
+			maxRetryAfter: 12,
+		},
 	}
 
 	for _, tc := range testCases {
@@ -961,7 +1002,7 @@ func TestHandler_HandleRetryAfterHeader(t *testing.T) {
 				req.Header.Add("Retry-Attempt", tc.retryAttempt)
 			}
 
-			addHeaders(recorder, nil, req, tc.responseCode, tc.retryCfg, log.NewNopLogger())
+			addHeaders(recorder, tc.err, req, tc.responseCode, tc.retryCfg, log.NewNopLogger())
 
 			retryAfter := recorder.Header().Get("Retry-After")
 			if !tc.expectRetry {
@@ -1136,14 +1177,14 @@ func TestHandler_ToHTTPStatus(t *testing.T) {
 			expectedHTTPStatus: http.StatusInternalServerError,
 			expectedErrorMsg:   fmt.Sprintf("%s %s: %s", failedPushingToIngesterMessage, ingesterID, context.DeadlineExceeded),
 		},
-		"a circuitBreakerOpenError gets translated into an HTTP 503": {
+		"a circuitBreakerOpenError gets translated into an HTTP 500": {
 			err:                newCircuitBreakerOpenError(client.ErrCircuitBreakerOpen{}),
-			expectedHTTPStatus: http.StatusServiceUnavailable,
+			expectedHTTPStatus: http.StatusInternalServerError,
 			expectedErrorMsg:   circuitbreaker.ErrOpen.Error(),
 		},
-		"a wrapped circuitBreakerOpenError gets translated into an HTTP 503": {
+		"a wrapped circuitBreakerOpenError gets translated into an HTTP 500": {
 			err:                errors.Wrap(newCircuitBreakerOpenError(client.ErrCircuitBreakerOpen{}), fmt.Sprintf("%s %s", failedPushingToIngesterMessage, ingesterID)),
-			expectedHTTPStatus: http.StatusServiceUnavailable,
+			expectedHTTPStatus: http.StatusInternalServerError,
 			expectedErrorMsg:   fmt.Sprintf("%s %s: %s", failedPushingToIngesterMessage, ingesterID, circuitbreaker.ErrOpen),
 		},
 	}

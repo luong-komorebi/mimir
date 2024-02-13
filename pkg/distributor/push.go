@@ -11,6 +11,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math"
 	"math/rand"
 	"net/http"
 	"strconv"
@@ -53,9 +54,10 @@ const (
 )
 
 type RetryConfig struct {
-	Enabled            bool `yaml:"enabled" category:"experimental"`
-	BaseSeconds        int  `yaml:"base_seconds" category:"experimental"`
-	MaxBackoffExponent int  `yaml:"max_backoff_exponent" category:"experimental"`
+	Enabled                        bool `yaml:"enabled" category:"experimental"`
+	BaseSeconds                    int  `yaml:"base_seconds" category:"experimental"`
+	MaxBackoffExponent             int  `yaml:"max_backoff_exponent" category:"experimental"`
+	CircuitBreakerAwarenessEnabled bool `yaml:"circuit_breaker_awareness_enabled" category:"experimental"`
 }
 
 // RegisterFlags adds the flags required to config this to the given FlagSet.
@@ -63,6 +65,7 @@ func (cfg *RetryConfig) RegisterFlags(f *flag.FlagSet) {
 	f.BoolVar(&cfg.Enabled, "distributor.retry-after-header.enabled", false, "Enabled controls inclusion of the Retry-After header in the response: true includes it for client retry guidance, false omits it.")
 	f.IntVar(&cfg.BaseSeconds, "distributor.retry-after-header.base-seconds", 3, "Base duration in seconds for calculating the Retry-After header in responses to 429/5xx errors.")
 	f.IntVar(&cfg.MaxBackoffExponent, "distributor.retry-after-header.max-backoff-exponent", 5, "Sets the upper limit on the number of Retry-Attempt considered for calculation. It caps the Retry-Attempt header without rejecting additional attempts, controlling exponential backoff calculations. For example, when the base-seconds is set to 3 and max-backoff-exponent to 5, the maximum retry duration would be 3 * 2^5 = 96 seconds.")
+	f.BoolVar(&cfg.CircuitBreakerAwarenessEnabled, "distributor.retry-after-header.circuit-breaker-awareness-enabled", false, "When enabled, calculates the Retry-After delay taking into account circuit breaker's remaining delay. In this case the Retry-After delay must be greater or equal to the circuit breaker's remaining delay, if that value doesn't exceed the maximum allowed retry duration calculated as base-seconds * 2^max-backoff-exponent.")
 }
 
 func (cfg *RetryConfig) Validate() error {
@@ -176,26 +179,25 @@ func handler(
 	})
 }
 
-func calculateRetryAfter(retryAttemptHeader string, baseSeconds int, maxBackoffExponent int, logger log.Logger) string {
+func calculateRetryAfter(retryAttemptHeader string, baseSeconds int, maxBackoffExponent int, circuitBreakerDelaySeconds float64, logger log.Logger) string {
 	retryAttempt, err := strconv.Atoi(retryAttemptHeader)
 	// If retry-attempt is not valid, set it to default 1
 	if err != nil || retryAttempt < 1 {
-		level.Info(logger).Log("msg", "No or invalid retry-attempt header, 1 will be used")
 		retryAttempt = 1
 	}
 	if retryAttempt > maxBackoffExponent {
-		level.Info(logger).Log("msg", fmt.Sprintf("retry-attempt higher than maxBackoffExponent %d arrived, %d will be used", maxBackoffExponent, maxBackoffExponent))
 		retryAttempt = maxBackoffExponent
-	} else {
-		level.Info(logger).Log("msg", fmt.Sprintf("retry-attempt %d arrived", retryAttempt))
 	}
-	var minSeconds, maxSeconds int64
+	var (
+		minSeconds, maxSeconds int64
+		maxAllowedDelay        = baseSeconds << maxBackoffExponent
+	)
 	minSeconds = int64(baseSeconds) << (retryAttempt - 1)
-	maxSeconds = int64(minSeconds) << 1
+	maxSeconds = minSeconds << 1
 
 	delaySeconds := minSeconds + rand.Int63n(maxSeconds-minSeconds)
-	maxAllowedDelay := baseSeconds << maxBackoffExponent
-	level.Info(logger).Log("msg", "Retry-After delay has been calculated", "delaySeconds", delaySeconds, "minSeconds", minSeconds, "maxAllowedDelay", maxAllowedDelay, "retryAttempt", retryAttempt, "maxBackoffExponent", maxBackoffExponent)
+	delaySeconds = int64(math.Min(math.Max(float64(delaySeconds), circuitBreakerDelaySeconds), float64(maxAllowedDelay)))
+	level.Info(logger).Log("msg", "Retry-After delay has been calculated", "delaySeconds", delaySeconds, "minSeconds", minSeconds, "maxAllowedDelay", maxAllowedDelay, "retryAttempt", retryAttempt, "maxBackoffExponent", maxBackoffExponent, "circuitBreakerDelaySeconds", circuitBreakerDelaySeconds)
 	return strconv.FormatInt(delaySeconds, 10)
 }
 
@@ -248,7 +250,14 @@ func addHeaders(w http.ResponseWriter, err error, r *http.Request, responseCode 
 	if responseCode == http.StatusTooManyRequests || responseCode/100 == 5 {
 		if retryCfg.Enabled {
 			retryAttemptHeader := r.Header.Get("Retry-Attempt")
-			retrySeconds := calculateRetryAfter(retryAttemptHeader, retryCfg.BaseSeconds, retryCfg.MaxBackoffExponent, logger)
+			circuitBreakerDelaySeconds := 0.0
+			if retryCfg.CircuitBreakerAwarenessEnabled {
+				var errCircuitBreakerOpen circuitBreakerOpenError
+				if errors.As(err, &errCircuitBreakerOpen) {
+					circuitBreakerDelaySeconds = errCircuitBreakerOpen.RemainingDelay().Seconds()
+				}
+			}
+			retrySeconds := calculateRetryAfter(retryAttemptHeader, retryCfg.BaseSeconds, retryCfg.MaxBackoffExponent, circuitBreakerDelaySeconds, logger)
 			w.Header().Set("Retry-After", retrySeconds)
 			if sp := opentracing.SpanFromContext(r.Context()); sp != nil {
 				sp.SetTag("retry-after", retrySeconds)
