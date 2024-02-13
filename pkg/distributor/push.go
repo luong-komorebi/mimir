@@ -234,7 +234,7 @@ func toHTTPStatus(ctx context.Context, pushErr error, limits *validation.Overrid
 		case mimirpb.TSDB_UNAVAILABLE:
 			return http.StatusServiceUnavailable
 		case mimirpb.CIRCUIT_BREAKER_OPEN:
-			return http.StatusServiceUnavailable
+			return http.StatusInternalServerError
 		}
 	}
 
