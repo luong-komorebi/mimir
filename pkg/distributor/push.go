@@ -170,20 +170,24 @@ func handler(
 			if code != 202 {
 				level.Error(logger).Log("msg", "push error", "err", err)
 			}
-			addHeaders(w, err, r, code, retryCfg)
+			addHeaders(w, err, r, code, retryCfg, logger)
 			http.Error(w, msg, code)
 		}
 	})
 }
 
-func calculateRetryAfter(retryAttemptHeader string, baseSeconds int, maxBackoffExponent int) string {
+func calculateRetryAfter(retryAttemptHeader string, baseSeconds int, maxBackoffExponent int, logger log.Logger) string {
 	retryAttempt, err := strconv.Atoi(retryAttemptHeader)
 	// If retry-attempt is not valid, set it to default 1
 	if err != nil || retryAttempt < 1 {
+		level.Info(logger).Log("msg", "No or invalid retry-attempt header, 1 will be used")
 		retryAttempt = 1
 	}
 	if retryAttempt > maxBackoffExponent {
+		level.Info(logger).Log("msg", fmt.Sprintf("retry-attempt higher than maxBackoffExponent %d arrived, % will be used", maxBackoffExponent, maxBackoffExponent))
 		retryAttempt = maxBackoffExponent
+	} else {
+		level.Info(logger).Log("msg", fmt.Sprintf("retry-attempt %d arrived", retryAttempt))
 	}
 	var minSeconds, maxSeconds int64
 	minSeconds = int64(baseSeconds) << (retryAttempt - 1)
@@ -232,7 +236,7 @@ func toHTTPStatus(ctx context.Context, pushErr error, limits *validation.Overrid
 	return http.StatusInternalServerError
 }
 
-func addHeaders(w http.ResponseWriter, err error, r *http.Request, responseCode int, retryCfg RetryConfig) {
+func addHeaders(w http.ResponseWriter, err error, r *http.Request, responseCode int, retryCfg RetryConfig, logger log.Logger) {
 	var doNotLogError middleware.DoNotLogError
 	if errors.As(err, &doNotLogError) {
 		w.Header().Set(server.DoNotLogErrorHeaderKey, "true")
@@ -241,7 +245,7 @@ func addHeaders(w http.ResponseWriter, err error, r *http.Request, responseCode 
 	if responseCode == http.StatusTooManyRequests || responseCode/100 == 5 {
 		if retryCfg.Enabled {
 			retryAttemptHeader := r.Header.Get("Retry-Attempt")
-			retrySeconds := calculateRetryAfter(retryAttemptHeader, retryCfg.BaseSeconds, retryCfg.MaxBackoffExponent)
+			retrySeconds := calculateRetryAfter(retryAttemptHeader, retryCfg.BaseSeconds, retryCfg.MaxBackoffExponent, logger)
 			w.Header().Set("Retry-After", retrySeconds)
 			if sp := opentracing.SpanFromContext(r.Context()); sp != nil {
 				sp.SetTag("retry-after", retrySeconds)
