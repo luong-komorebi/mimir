@@ -173,13 +173,13 @@ func handler(
 			if code != 202 {
 				level.Error(logger).Log("msg", "push error", "err", err)
 			}
-			addHeaders(w, err, r, code, retryCfg)
+			addHeaders(w, err, r, code, retryCfg, logger)
 			http.Error(w, msg, code)
 		}
 	})
 }
 
-func calculateRetryAfter(retryAttemptHeader string, baseSeconds int, maxBackoffExponent int, circuitBreakerDelaySeconds float64) string {
+func calculateRetryAfter(retryAttemptHeader string, baseSeconds int, maxBackoffExponent int, circuitBreakerDelaySeconds float64, logger log.Logger) string {
 	retryAttempt, err := strconv.Atoi(retryAttemptHeader)
 	// If retry-attempt is not valid, set it to default 1
 	if err != nil || retryAttempt < 1 {
@@ -197,6 +197,7 @@ func calculateRetryAfter(retryAttemptHeader string, baseSeconds int, maxBackoffE
 
 	delaySeconds := minSeconds + rand.Int63n(maxSeconds-minSeconds)
 	delaySeconds = int64(math.Min(math.Max(float64(delaySeconds), circuitBreakerDelaySeconds), float64(maxAllowedDelay)))
+	level.Info(logger).Log("msg", "Retry-After delay has been calculated", "delaySeconds", delaySeconds, "minSeconds", minSeconds, "maxAllowedDelay", maxAllowedDelay, "retryAttempt", retryAttempt, "maxBackoffExponent", maxBackoffExponent, "circuitBreakerDelaySeconds", circuitBreakerDelaySeconds)
 	return strconv.FormatInt(delaySeconds, 10)
 }
 
@@ -240,7 +241,7 @@ func toHTTPStatus(ctx context.Context, pushErr error, limits *validation.Overrid
 	return http.StatusInternalServerError
 }
 
-func addHeaders(w http.ResponseWriter, err error, r *http.Request, responseCode int, retryCfg RetryConfig) {
+func addHeaders(w http.ResponseWriter, err error, r *http.Request, responseCode int, retryCfg RetryConfig, logger log.Logger) {
 	var doNotLogError middleware.DoNotLogError
 	if errors.As(err, &doNotLogError) {
 		w.Header().Set(server.DoNotLogErrorHeaderKey, "true")
@@ -256,7 +257,7 @@ func addHeaders(w http.ResponseWriter, err error, r *http.Request, responseCode 
 					circuitBreakerDelaySeconds = errCircuitBreakerOpen.RemainingDelay().Seconds()
 				}
 			}
-			retrySeconds := calculateRetryAfter(retryAttemptHeader, retryCfg.BaseSeconds, retryCfg.MaxBackoffExponent, circuitBreakerDelaySeconds)
+			retrySeconds := calculateRetryAfter(retryAttemptHeader, retryCfg.BaseSeconds, retryCfg.MaxBackoffExponent, circuitBreakerDelaySeconds, logger)
 
 			w.Header().Set("Retry-After", retrySeconds)
 			if sp := opentracing.SpanFromContext(r.Context()); sp != nil {

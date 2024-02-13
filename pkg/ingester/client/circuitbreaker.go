@@ -115,7 +115,9 @@ func NewCircuitBreaker(inst ring.InstanceDesc, cfg CircuitBreakerConfig, metrics
 
 		if err != nil && errors.Is(err, circuitbreaker.ErrOpen) {
 			countOpen.Inc()
-			return NewErrCircuitBreakerOpen(breaker.RemainingDelay())
+			if cfg.ReturnMimirCircuitBreakerOpenErrorEnabled {
+				return NewErrCircuitBreakerOpen(breaker.RemainingDelay())
+			}
 		}
 
 		return err

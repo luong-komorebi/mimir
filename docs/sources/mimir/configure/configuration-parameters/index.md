@@ -2372,6 +2372,11 @@ circuit_breaker:
   # CLI flag: -ingester.client.circuit-breaker.fail-on-unavailable-errors
   [fail_on_unavailable_errors: <boolean> | default = false]
 
+  # (experimental) When set to true client.CircuitBreakerOpenError is return
+  # instead of circuitbreaker.ErrOpen
+  # CLI flag: -ingester.client.circuit-breaker.return-mimir-circuit-breaker-error-enabled
+  [return_mimir_circuit_breaker_open_error_enabled: <boolean> | default = false]
+
 # (deprecated) If set to true, gRPC status codes will be reported in
 # "status_code" label of "cortex_ingester_client_request_duration_seconds"
 # metric. Otherwise, they will be reported as "error"
