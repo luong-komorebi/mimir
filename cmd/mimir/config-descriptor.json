@@ -2271,6 +2271,17 @@
               "fieldFlag": "ingester.client.circuit-breaker.cooldown-period",
               "fieldType": "duration",
               "fieldCategory": "experimental"
+            },
+            {
+              "kind": "field",
+              "name": "return_mimir_circuit_breaker_open_error_enabled",
+              "required": false,
+              "desc": "When set to true client.CircuitBreakerOpenError is return instead of circuitbreaker.ErrOpen",
+              "fieldValue": null,
+              "fieldDefaultValue": false,
+              "fieldFlag": "ingester.client.circuit-breaker.return-mimir-circuit-breaker-error-enabled",
+              "fieldType": "boolean",
+              "fieldCategory": "experimental"
             }
           ],
           "fieldValue": null,

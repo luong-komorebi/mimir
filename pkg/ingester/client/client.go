@@ -104,11 +104,12 @@ func (cfg *Config) Validate(logger log.Logger) error {
 }
 
 type CircuitBreakerConfig struct {
-	Enabled                   bool          `yaml:"enabled" category:"experimental"`
-	FailureThreshold          uint          `yaml:"failure_threshold" category:"experimental"`
-	FailureExecutionThreshold uint          `yaml:"failure_execution_threshold" category:"experimental"`
-	ThresholdingPeriod        time.Duration `yaml:"thresholding_period" category:"experimental"`
-	CooldownPeriod            time.Duration `yaml:"cooldown_period" category:"experimental"`
+	Enabled                                   bool          `yaml:"enabled" category:"experimental"`
+	FailureThreshold                          uint          `yaml:"failure_threshold" category:"experimental"`
+	FailureExecutionThreshold                 uint          `yaml:"failure_execution_threshold" category:"experimental"`
+	ThresholdingPeriod                        time.Duration `yaml:"thresholding_period" category:"experimental"`
+	CooldownPeriod                            time.Duration `yaml:"cooldown_period" category:"experimental"`
+	ReturnMimirCircuitBreakerOpenErrorEnabled bool          `yaml:"return_mimir_circuit_breaker_open_error_enabled" category:"experimental"`
 }
 
 func (cfg *CircuitBreakerConfig) RegisterFlagsWithPrefix(prefix string, f *flag.FlagSet) {
@@ -117,6 +118,7 @@ func (cfg *CircuitBreakerConfig) RegisterFlagsWithPrefix(prefix string, f *flag.
 	f.UintVar(&cfg.FailureExecutionThreshold, prefix+".circuit-breaker.failure-execution-threshold", 100, "How many requests must have been executed in period for the circuit breaker to be eligible to open for the rate of failures")
 	f.DurationVar(&cfg.ThresholdingPeriod, prefix+".circuit-breaker.thresholding-period", time.Minute, "Moving window of time that the percentage of failed requests is computed over")
 	f.DurationVar(&cfg.CooldownPeriod, prefix+".circuit-breaker.cooldown-period", 10*time.Second, "How long the circuit breaker will stay in the open state before allowing some requests")
+	f.BoolVar(&cfg.ReturnMimirCircuitBreakerOpenErrorEnabled, prefix+".circuit-breaker.return-mimir-circuit-breaker-error-enabled", false, "When set to true client.CircuitBreakerOpenError is return instead of circuitbreaker.ErrOpen")
 }
 
 func (cfg *CircuitBreakerConfig) Validate() error {

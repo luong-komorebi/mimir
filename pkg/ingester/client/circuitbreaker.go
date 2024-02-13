@@ -46,6 +46,10 @@ type ErrCircuitBreakerOpen struct {
 	remainingDelay time.Duration
 }
 
+func NewErrCircuitBreakerOpen(remainingDelay time.Duration) ErrCircuitBreakerOpen {
+	return ErrCircuitBreakerOpen{remainingDelay: remainingDelay}
+}
+
 func (e ErrCircuitBreakerOpen) RemainingDelay() time.Duration {
 	return e.remainingDelay
 }
@@ -111,7 +115,9 @@ func NewCircuitBreaker(inst ring.InstanceDesc, cfg CircuitBreakerConfig, metrics
 
 		if err != nil && errors.Is(err, circuitbreaker.ErrOpen) {
 			countOpen.Inc()
-			return ErrCircuitBreakerOpen{remainingDelay: breaker.RemainingDelay()}
+			if cfg.ReturnMimirCircuitBreakerOpenErrorEnabled {
+				return NewErrCircuitBreakerOpen(breaker.RemainingDelay())
+			}
 		}
 
 		return err

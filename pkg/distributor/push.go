@@ -194,7 +194,8 @@ func calculateRetryAfter(retryAttemptHeader string, baseSeconds int, maxBackoffE
 	maxSeconds = int64(minSeconds) << 1
 
 	delaySeconds := minSeconds + rand.Int63n(maxSeconds-minSeconds)
-
+	maxAllowedDelay := baseSeconds << maxBackoffExponent
+	level.Info(logger).Log("msg", "Retry-After delay has been calculated", "delaySeconds", delaySeconds, "minSeconds", minSeconds, "maxAllowedDelay", maxAllowedDelay, "retryAttempt", retryAttempt, "maxBackoffExponent", maxBackoffExponent)
 	return strconv.FormatInt(delaySeconds, 10)
 }
 
